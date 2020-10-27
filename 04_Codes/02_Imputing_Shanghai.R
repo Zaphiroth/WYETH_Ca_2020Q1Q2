@@ -1,0 +1,141 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# ProjectName:  WYETH Ca
+# Purpose:      Shanghai imputation
+# programmer:   Zhe Liu
+# Date:         2020-10-23
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+##---- Readin ----
+# 2018 data
+total.2018.part1 <- read.xlsx("02_Inputs/data/五城市rawdata_2018.xlsx")
+total.2018.part2 <- read.xlsx("02_Inputs/data/二城市rawdata_2018.xlsx")
+
+total.2018 <- total.2018.part2 %>% 
+  mutate(Date = as.character(Date)) %>% 
+  bind_rows(total.2018.part1) %>% 
+  mutate(year = stri_sub(Date, 1, 4),
+         quarter = ifelse(Date %in% c("201801", "201802", "201803"), "2018Q1", 
+                          ifelse(Date %in% c("201804", "201805", "201806"), "2018Q2", 
+                                 ifelse(Date %in% c("201807", "201808", "201809"), "2018Q3", 
+                                        ifelse(Date %in% c("201810", "201811", "201812"), "2018Q4", 
+                                               "2018")))),
+         province = gsub("省|市", "", province),
+         city = gsub("市", "", city),
+         pchc = if_else(is.na(PCHC), PCHC.v2, PCHC)) %>% 
+  filter(!is.na(pchc), !is.na(Prd_desc_m)) %>% 
+  select(year, date = Date, quarter, province, city, district = `区县`, pchc, 
+         packid = pfc_m, Prd_desc = Prd_desc_m, units, 
+         sales = value) %>% 
+  group_by(year, date, quarter, province, city, district, pchc, packid) %>% 
+  summarise(units = sum(units, na.rm = TRUE),
+            sales = sum(sales, na.rm = TRUE)) %>% 
+  ungroup()
+
+# molecule info
+mole.ref <- fread("02_Inputs/cn_mol_ref_201903_1.txt", stringsAsFactors = FALSE)
+mole.lkp <- fread("02_Inputs/cn_mol_lkp_201903_1.txt", stringsAsFactors = FALSE)
+
+mole.mapping <- mole.lkp %>% 
+  left_join(mole.ref, by = c("Molecule_ID" = "Molecule_Id")) %>% 
+  arrange(Molecule_Desc) %>% 
+  group_by(packid = stri_pad_left(Pack_ID, 7, 0)) %>% 
+  summarise(Molecule_Desc = paste0(Molecule_Desc, collapse = "+")) %>% 
+  ungroup()
+
+
+##---- Model ----
+# model data
+model.data.raw <- total.2018 %>% 
+  filter(quarter %in% c("2018Q1", "2018Q2")) %>% 
+  bind_rows(raw.total) %>% 
+  mutate(flag = if_else(city %in% "上海", 1, 0)) %>% 
+  left_join(mole.mapping, by = "packid")
+
+model.data <- model.data.raw %>% 
+  group_by(province, city, district, pchc, flag, date) %>% 
+  summarise(sales = sum(sales, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  setDT() %>% 
+  dcast(province + city + district + pchc + flag ~ date, value.var = "sales", fill = 0)
+
+# model
+train.set <- filter(model.data, flag == 0)
+test.set <- filter(model.data, flag == 1)
+
+model.train <- train.set[, 5:17]
+model.test <- test.set[, 5:17]
+
+knn.model <- kknn(flag ~ ., train = model.train, test = model.test, k = 3, scale = TRUE)
+
+# model weightage
+model.indice <- as.data.frame(knn.model$C) %>%
+  lapply(function(x) {
+    train.set$pchc[x]
+  }) %>%
+  as.data.frame(col.names = c("pchc_1", "pchc_2", "pchc_3")) %>%
+  bind_cols(test.set[, c("province", "city", "pchc")]) %>%
+  setDT() %>%
+  melt(id.vars = c("province", "city", "pchc"), variable.name = "knn_level", value.name = "knn_pchc")
+
+model.weight <- as.data.frame(knn.model$D) %>%
+  lapply(function(x) {
+    1 / (x+1)
+  }) %>%
+  as.data.frame(col.names = c("pchc_1", "pchc_2", "pchc_3")) %>%
+  mutate(weight_sum = pchc_1 + pchc_2 + pchc_3,
+         pchc_1 = pchc_1 / weight_sum,
+         pchc_2 = pchc_2 / weight_sum,
+         pchc_3 = pchc_3 / weight_sum) %>%
+  bind_cols(test.set[, c("province", "city", "pchc")]) %>%
+  select(-weight_sum) %>%
+  setDT() %>%
+  melt(id.vars = c("province", "city", "pchc"), variable.name = "knn_level", value.name = "knn_weight")
+
+# model growth
+model.growth <- model.data.raw %>% 
+  filter(flag == 0) %>% 
+  group_by(knn_pchc = pchc, Molecule_Desc, year, quarter) %>% 
+  summarise(sales = sum(sales, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  inner_join(model.indice, by = "knn_pchc") %>% 
+  left_join(model.weight, by = c("province", "city", "pchc", "knn_level")) %>% 
+  group_by(pchc, Molecule_Desc, year, quarter) %>% 
+  summarise(sales = sum(sales * knn_weight, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  setDT() %>% 
+  dcast(pchc + Molecule_Desc ~ quarter, value.var = "sales", fill = 0) %>% 
+  mutate(growth_q1 = `2020Q1` / `2018Q1`,
+         growth_q2 = `2020Q2` / `2018Q2`,
+         growth_q1 = ifelse(is.na(growth_q1) | growth_q1 < 0.1 | growth_q1 > 10, 1, growth_q1),
+         growth_q2 = ifelse(is.na(growth_q2) | growth_q2 < 0.1 | growth_q2 > 10, 1, growth_q2)) %>% 
+  select(pchc, Molecule_Desc, `2018Q1` = growth_q1, `2018Q2` = growth_q2) %>% 
+  setDT() %>% 
+  melt(id.vars = c("pchc", "Molecule_Desc"),
+       measuer.vars = c("2018Q1", "2018Q2"),
+       variable.name = "quarter",
+       value.name = "growth",
+       variable.factor = FALSE)
+
+# model sales
+imp.sh <- model.data.raw %>% 
+  filter(quarter %in% c("2018Q1", "2018Q2"), flag == 1) %>% 
+  left_join(model.growth, by = c("pchc", "Molecule_Desc", "quarter")) %>% 
+  mutate(growth = if_else(is.na(growth), 1, growth),
+         growth = if_else(growth > 3, 3, growth),
+         growth = if_else(growth > quantile(growth, 0.9),
+                          mean(growth[growth >= quantile(growth, 0.25) & growth <= quantile(growth, 0.75)]),
+                          growth)) %>% 
+  mutate(units = units * growth,
+         sales = sales * growth,
+         year = "2020",
+         date = gsub("2018", "2020", date),
+         quarter = gsub("2018", "2020", quarter)) %>% 
+  select(year, date, quarter, province, city, district, pchc, packid, units, sales)
+
+
+##---- Bind ----
+imp.total <- bind_rows(raw.total, imp.sh)
+
+write.xlsx(imp.total, "03_Outputs/02_Ca_Imputation_2020Q1Q2.xlsx")
+
