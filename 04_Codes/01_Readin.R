@@ -99,9 +99,10 @@ raw.gd2 <- read.xlsx('02_Inputs/data/2jd_date.xlsx') %>%
   select(year, date, quarter, province, city, district, pchc, packid, units, sales)
 
 # 安徽北京江苏山东浙江
-raw.ahbjjssdzj <- read.xlsx('02_Inputs/data/CA_ahbjjssdzj_CHC_2020Q1Q2.xlsx')
+raw.ahbjjssdzj.pack <- read.xlsx('02_Inputs/data/CA_ahbjjssdzj_CHC_2020Q1Q2.xlsx')
+raw.ahbjjssdzj.non <- read.xlsx('02_Inputs/data/CA_ahbjjssdzj_2020Q1Q2.xlsx')
 
-raw.ahbjjssdzj <- raw.ahbjjssdzj %>% 
+raw.ahbjjssdzj <- raw.ahbjjssdzj.pack %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            date = as.character(Month), 
@@ -113,6 +114,9 @@ raw.ahbjjssdzj <- raw.ahbjjssdzj %>%
            units = Volume, 
            sales = Value) %>% 
   left_join(pchc.mapping, by = c('province', 'city', 'district', 'hospital'))
+
+raw.ahbjjssdzj.sup <- raw.ahbjjssdzj.non %>% 
+  filter()
 
 # bind
 raw.total <- bind_rows(raw.ahbjjssdzj, raw.gd1, raw.gd2) %>% 
