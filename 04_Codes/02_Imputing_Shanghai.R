@@ -143,7 +143,8 @@ imp.sh <- total.2018 %>%
 
 
 ##---- Bind ----
-imp.total <- bind_rows(raw.total, imp.sh)
+imp.total <- bind_rows(raw.total, imp.sh) %>% 
+  filter(units > 0, sales > 0)
 
 write.xlsx(imp.total, "03_Outputs/02_Ca_Imputation_2020Q1Q2.xlsx")
 

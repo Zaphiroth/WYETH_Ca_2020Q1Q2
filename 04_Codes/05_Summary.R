@@ -43,24 +43,15 @@ proj.adj <- proj.price %>%
             dosage_units = sum(dosage_units, na.rm = TRUE)) %>% 
   ungroup() %>% 
   mutate(sales = case_when(
-    # city == "上海" & prod_cn == "钙尔奇 D600" ~ sales * 1.35,
     city == "宁波" & prod_cn == "钙尔奇 D600" ~ sales * 1.5,
-    city == "宁波" & prod_cn == "朗迪" ~ sales * 1.5,
-    city == "苏州" & quarter == "2019Q4" & prod_cn == "朗迪" ~ sales * 2,
     TRUE ~ sales
   ),
   units = case_when(
-    # city == "上海" & prod_cn == "钙尔奇 D600" ~ units * 1.35,
     city == "宁波" & prod_cn == "钙尔奇 D600" ~ units * 1.5,
-    city == "宁波" & prod_cn == "朗迪" ~ units * 1.5,
-    city == "苏州" & prod_cn == "朗迪" ~ units * 2,
     TRUE ~ units
   ),
   dosage_units = case_when(
-    # city == "上海" & prod_cn == "钙尔奇 D600" ~ dosage_units * 1.35,
     city == "宁波" & prod_cn == "钙尔奇 D600" ~ dosage_units * 1.5,
-    city == "宁波" & prod_cn == "朗迪" ~ dosage_units * 1.5,
-    city == "苏州" & prod_cn == "朗迪" ~ dosage_units * 2,
     TRUE ~ dosage_units
   )) %>% 
   mutate(units = round(units),
@@ -77,7 +68,7 @@ write.xlsx(proj.adj, '03_Outputs/05_Ca_Summary_2020Q1Q2.xlsx')
 
 
 ##---- result ----
-history.delivery <- read.xlsx("06_Deliveries/05_CHC_Ca_2018Q1_2019Q4.xlsx")
+history.delivery <- read.xlsx("06_Deliveries/05_CHC_Ca_2018Q1_2019Q4_pre.xlsx")
 
 wyeth.delivery <- bind_rows(proj.adj, history.delivery) %>% 
   filter(Prod_Desc_EN != "JING RENEED") %>% 

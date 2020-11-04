@@ -43,6 +43,10 @@ pack.info <- ims.raw[, 1:21] %>%
          Mnf_Desc, ATC4_Code, NFC123_Code, Prd_desc, Pck_Desc, 
          Molecule_Desc)
 
+# SKU
+sku.info <- read.xlsx('02_Inputs/CA_ahbjjssdzj181920Q1Q2_sku_packid_price_ims_chk_new.xlsx') %>% 
+  mutate(Prd_desc_ZB = if_else(is.na(Prd_desc_ZB), '无', Prd_desc_ZB))
+
 # market definition
 market.def <- read_xlsx("02_Inputs/钙尔奇 招标数据缺失产品汇总.xlsx", sheet = "市场定义同分子下的packid")
 market.def <- sort(c(unique(market.def$Pack_ID), "0242704"))
@@ -103,6 +107,9 @@ raw.ahbjjssdzj.pack <- read.xlsx('02_Inputs/data/CA_ahbjjssdzj_CHC_2020Q1Q2.xlsx
 raw.ahbjjssdzj.non <- read.xlsx('02_Inputs/data/CA_ahbjjssdzj_2020Q1Q2.xlsx')
 
 raw.ahbjjssdzj <- raw.ahbjjssdzj.pack %>% 
+  left_join(sku.info[, 1:7], 
+            by = c('Molecule_Desc_ZB', 'Prd_desc_ZB', 'SPEC' = 'SPEC_ZB', 
+                   'Dosage' = 'Dosage_ZB', 'PACK' = 'PACK_ZB', 'Mnf_Desc_ZB')) %>% 
   distinct(year = as.character(Year), 
            quarter = Quarter, 
            date = as.character(Month), 
@@ -110,13 +117,10 @@ raw.ahbjjssdzj <- raw.ahbjjssdzj.pack %>%
            city = if_else(City == "市辖区", "北京", gsub("市", "", City)), 
            district = County, 
            hospital = Hospital_Name, 
-           packid = stri_pad_left(packcode, 7, 0), 
+           packid = stri_pad_left(Pack_ID, 7, 0), 
            units = Volume, 
            sales = Value) %>% 
   left_join(pchc.mapping, by = c('province', 'city', 'district', 'hospital'))
-
-raw.ahbjjssdzj.sup <- raw.ahbjjssdzj.non %>% 
-  filter()
 
 # bind
 raw.total <- bind_rows(raw.ahbjjssdzj, raw.gd1, raw.gd2) %>% 
@@ -134,3 +138,5 @@ raw.total <- bind_rows(raw.ahbjjssdzj, raw.gd1, raw.gd2) %>%
   ungroup()
 
 write.xlsx(raw.total, '03_Outputs/01_Ca_Raw_2020Q1Q2.xlsx')
+
+
