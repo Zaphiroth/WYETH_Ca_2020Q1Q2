@@ -43,3 +43,25 @@ price.check <- wyeth.delivery %>%
 write.xlsx(price.check, '05_Internal_Review/Price_Check.xlsx')
 
 
+##---- Check SOP -----
+chpa.format <- read.xlsx('05_Internal_Review/ims_chpa_to20Q2_format.xlsx')
+
+ca.chpa <- chpa.format %>% 
+  pivot_longer(cols = c(ends_with('UNIT'), ends_with('RENMINBI')), 
+               names_to = 'quarter', 
+               values_to = 'value') %>% 
+  separate(quarter, c('quarter', 'measure'), sep = '_') %>% 
+  pivot_wider(id_cols = c(Pack_ID, ATC3_Code, Molecule_Desc, Prd_desc, 
+                          Pck_Desc, Corp_Desc, quarter), 
+              names_from = measure, 
+              values_from = value) %>% 
+  filter(Pack_ID %in% market.def, 
+         stri_sub(quarter, 1, 4) %in% c('2018', '2019', '2020')) %>% 
+  mutate(MKT = 'CA', 
+         Prd_desc = trimws(stri_sub(Prd_desc, 1, -4))) %>% 
+  select(Pack_ID, Date = quarter, ATC3 = ATC3_Code, MKT, Molecule_Desc, 
+         Prod_Desc_EN = Prd_desc, Pck_Desc, Corp_Desc, Units = UNIT, 
+         Sales = RENMINBI)
+
+write.xlsx(ca.chpa, '05_Internal_Review/Ca_CHPA_2018Q1_2020Q2.xlsx')
+
