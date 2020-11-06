@@ -38,7 +38,10 @@ write.xlsx(proj.rate, '05_Internal_Review/Projection_Rate.xlsx')
 ##---- Price check ----
 price.check <- wyeth.delivery %>% 
   mutate(price = round(Sales / Units)) %>% 
-  distinct(City, Pack_ID, Date, price)
+  distinct(City, Pack_ID, Date, price) %>% 
+  pivot_wider(id_cols = c(City, Pack_ID), 
+              names_from = Date, 
+              values_from = price)
   
 write.xlsx(price.check, '05_Internal_Review/Price_Check.xlsx')
 
