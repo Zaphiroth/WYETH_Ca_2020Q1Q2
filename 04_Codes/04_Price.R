@@ -75,7 +75,15 @@ proj.price <- proj.total %>%
          price = if_else(is.na(price), price_prov, price), 
          price = if_else(is.na(price), price_year, price), 
          price = if_else(is.na(price), price_pack, price), 
-         price = if_else(is.na(price), price_pack_year, price)) %>% 
+         price = if_else(is.na(price), price_pack_year, price), 
+         price = case_when(
+           quarter == '2020Q2' & city == '北京' & packid == '1660012' ~ 43.2, 
+           quarter == '2020Q1' & city == '北京' & packid == '4463602' ~ 14.62, 
+           quarter == '2020Q1' & city %in% c('杭州', '宁波') & packid == '4255810' ~ 68.68, 
+           quarter == '2020Q1' & city %in% c('杭州', '宁波') & packid == '4255812' ~ 34.33, 
+           quarter == '2020Q2' & city == '苏州' & packid == '4107102' ~ 52.75, 
+           TRUE ~ price
+         )) %>% 
   mutate(units = sales / price) %>% 
   # filter(!is.na(price), sales > 0) %>% 
   select(year, quarter, province, city, seg, pchc, market, packid, price, 

@@ -80,8 +80,16 @@ wyeth.delivery <- bind_rows(proj.adj, history.delivery) %>%
   #        Sales = round(Sales_2018Q4 * Sales_2019Q3 / Sales_2018Q3, 2),
   #        Units = round(Units_2018Q4 * Sales_2019Q3 / Sales_2018Q3),
   #        DosageUnits = round(DosageUnits_2018Q4 * Sales_2019Q3 / Sales_2018Q3)) %>% 
+  arrange(Date, Province, City, Pack_ID) %>% 
+  group_by(Pack_ID) %>% 
+  mutate(ATC3 = first(ATC3), 
+         Molecule_Desc = first(Molecule_Desc), 
+         Prod_Desc_EN = first(Prod_Desc_EN), 
+         Prod_Desc_CN = first(Prod_Desc_CN), 
+         Pck_Desc = first(Pck_Desc), 
+         Corp_Desc = first(Corp_Desc)) %>% 
+  ungroup() %>% 
   select(Pack_ID, Channel, Province, City, Date, ATC3, MKT, Molecule_Desc, 
-         Prod_Desc_EN, Prod_Desc_CN, Pck_Desc, Corp_Desc, Sales, Units, DosageUnits) %>% 
-  arrange(Date, Province, City, Pack_ID)
+         Prod_Desc_EN, Prod_Desc_CN, Pck_Desc, Corp_Desc, Sales, Units, DosageUnits)
 
 write.xlsx(wyeth.delivery, "03_Outputs/05_WYETH_Ca_CHC_2018Q1_2020Q2.xlsx")
